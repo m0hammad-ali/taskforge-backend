@@ -1,49 +1,59 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
+
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
 
-let mockDatabase = [
-    { id: 1, text: "Learn Node.js basics", completed: false, subtasks: []},
-    { id: 2, text: "Build an Express API router", completed: false, subtasks: []},
-];
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log("🔌 Connected to cloud MongoDB Atlas database successfully!"))
+    .catch((err) => console.error("❌ Database connection error:", err));
 
-app.get('/api/tasks', (req, res) => {
-    console.log("Received a GET request to fetch all tasks");
-    res.json(mockDatabase);
+const TaskSchema = new mongoose.Schema({
+    text: { type: String, required: true, trim: true },
+    completed: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
 });
 
-app.post('/api/tasks', (req, res) => {
-    console.log("Received a POST request to add a new task:", req.body);
-    const { text } = req.body;
-    if (!text) {
-        return res.status(400).json({error: "Task"});
+const Task = mongoose.model('Task', TaskSchema);
+
+app.get('/api/tasks', async (req, res) => {
+    try {
+        const tasks = await Task.find().sort({ createdAt: -1 });
+        res.json(tasks);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch tasks from database." });
     }
-    const newTask = {
-        id: Date.now(),
-        text: text,
-        completed: false,
-        subtasks: []
-    };
-    mockDatabase.push(newTask);
-    res.status(201).json(newTask);
 });
 
-app.delete('/api/tasks/:id', (req, res) => {
-    const taskId = parseInt(req.params.id);
-    console.log(`Received a DELETE request for task ID: ${taskId}`);
+app.post('/api/tasks', async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: "Text field is required." });
 
-    const taskExists = mockDatabase.some(t => t.id === taskId);
-    if (!taskExists) {
-        return res.status(404).json({error: "Task not found."});
+        const newTask = new Task({ text });
+        await newTask.save();
+        res.status(201).json(newTask);
+    } catch (err) {
+        res.status(500).json({ error: "Database rejected task creation payload." });
     }
-    mockDatabase = mockDatabase.filter(t => t.id !== taskId);
-    res.json({message: "Task successfully deleted from memory cache.", id: taskId });
+});
+
+app.delete('/api/tasks/:id', async (req, res) => {
+    try {
+        const deletedTask = await Task.findByIdAndDelete(req.params.id);
+        if (!deletedTask) return res.status(404).json({ error: "Task not found." });
+        
+        res.json({ message: "Task dropped from database storage.", id: req.params.id });
+    } catch (err) {
+        res.status(500).json({ error: "Database failed to process deletion request." });
+    }
 });
 
 app.listen(PORT, () => {
-    console.log(`TaskForge Server is officially blazing hot on http://localhost:${PORT}`);
-})
+    console.log(`TaskForge Network Backbone active on http://localhost:${PORT}`);
+});
