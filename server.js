@@ -14,9 +14,11 @@ const io = new Server(server, { cors: { origin: "http://localhost:5173" } });
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGODB_URI).then(() => console.log("🔌 MongoDB online."));
+mongoose.connect(process.env.MONGODB_URI).then(() => console.log("MongoDB online."));
 
-const Task = mongoose.model('Task', new mongoose.Schema({ text: String, completed: Boolean }));
+const Task = mongoose.model('Task', new mongoose.Schema({ text: { type: String, required: true, trim: true, index: true },
+    completed: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now } }));
 
 const redisClient = redis.createClient({
     url: process.env.REDIS_URL,
